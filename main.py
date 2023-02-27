@@ -3,7 +3,7 @@ morseIndex = 0
 command = "*"
 LOUD=200
 QUIET=100
-DOT_MIN=100
+DOT_MIN=50
 DASH_MIN=300
 LETTER_GAP=800
 isLoud=False
@@ -52,27 +52,39 @@ def checkMorse():
         
         if mark>DASH_MIN:
             morseIndex += 1
+      
+        basic.show_number(morseIndex)
+        
         if morseIndex > 63:
             morseIndex = 0 # ignore a six-beep letter!
         mark = 0
-    else: 
-        if gap>LETTER_GAP:
-            command = MORSE_TREE[morseIndex]
+
+   # else: 
+        # if gap>LETTER_GAP:
+           # morseIndex = 0
+    command = MORSE_TREE[morseIndex]
 
 def obey_command():
     global command
-    basic.show_string(command)
+
+    for i in range(4):
+        basic.clear_screen()
+        basic.pause(100)
+        basic.show_string(command)
+        basic.pause(100)
     basic.pause(3000)
     command = "*"
 
 def on_forever():
-    global command
+    global command, mark
     #listen()
     monitor_button()
     checkMorse()
-    if command == "*":
-        pass
-    else:
-        obey_command()
+    basic.show_string(command)
+    # if command == "*":
+    #     pass
+    # else:
+    #     obey_command()
+    basic.pause(100)
     
 basic.forever(on_forever)

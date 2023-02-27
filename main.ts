@@ -3,7 +3,7 @@ let morseIndex = 0
 let command = "*"
 let LOUD = 200
 let QUIET = 100
-let DOT_MIN = 100
+let DOT_MIN = 50
 let DASH_MIN = 300
 let LETTER_GAP = 800
 let isLoud = false
@@ -78,21 +78,29 @@ function checkMorse() {
             morseIndex += 1
         }
         
+        basic.showNumber(morseIndex)
         if (morseIndex > 63) {
             morseIndex = 0
         }
         
         //  ignore a six-beep letter!
         mark = 0
-    } else if (gap > LETTER_GAP) {
-        command = MORSE_TREE[morseIndex]
     }
     
+    //  else: 
+    //  if gap>LETTER_GAP:
+    //  morseIndex = 0
+    command = MORSE_TREE[morseIndex]
 }
 
 function obey_command() {
     
-    basic.showString(command)
+    for (let i = 0; i < 4; i++) {
+        basic.clearScreen()
+        basic.pause(100)
+        basic.showString(command)
+        basic.pause(100)
+    }
     basic.pause(3000)
     command = "*"
 }
@@ -102,10 +110,10 @@ basic.forever(function on_forever() {
     // listen()
     monitor_button()
     checkMorse()
-    if (command == "*") {
-        
-    } else {
-        obey_command()
-    }
-    
+    basic.showString(command)
+    //  if command == "*":
+    //      pass
+    //  else:
+    //      obey_command()
+    basic.pause(100)
 })
