@@ -1,11 +1,11 @@
 MORSE_TREE = "?ETIANMSURWDKGOHVF?L?PJBXCYZQ??54?3???2???????16???????7???8?91"
 morseIndex = 0
-command = "*"
+command = "?"
 LOUD=200
 QUIET=100
-DOT_MIN=50
-DASH_MIN=300
-LETTER_GAP=800
+DOT_MIN=10
+DASH_MIN=100
+LETTER_GAP=1000
 isLoud=False
 mark=0
 gap=0
@@ -37,54 +37,48 @@ def monitor_button():
             mark=goQuiet-goLoud
         # else simulated "beep" lengthens
     else: # (button up)
-        gap = input.running_time() - goQuiet # lengthen gap
         if input.button_is_pressed(Button.A):
             isLoud=True # new press ends the gap
             goLoud=input.running_time()
-        # else gap lengthens
-
+        gap = input.running_time() - goQuiet # lengthen gap
+            
 
 def checkMorse():
     global morseIndex, mark, command
-    if mark>0: # (just finished a beep)
-        if mark>DOT_MIN:
-            morseIndex += morseIndex
-        
+    if mark>0: # (just finished a beep)      
         if mark>DASH_MIN:
-            morseIndex += 1
-      
-        basic.show_number(morseIndex)
-        
+            morseIndex += morseIndex + 1
+            # basic.show_icon(IconNames.YES)
+        elif mark>DOT_MIN:
+            morseIndex += morseIndex
+            # basic.show_icon(IconNames.NO)
+        # else:
+            # basic.show_icon(IconNames.SQUARE) 
         if morseIndex > 63:
-            morseIndex = 0 # ignore a six-beep letter!
-        mark = 0
-
-   # else: 
-        # if gap>LETTER_GAP:
-           # morseIndex = 0
-    command = MORSE_TREE[morseIndex]
+            morseIndex = 0 # ignore any six-beep attempt!
+        mark = 0 # mark now dealt with
+    elif gap>LETTER_GAP:
+        command = MORSE_TREE[morseIndex]
+        morseIndex = 0
 
 def obey_command():
     global command
-
-    for i in range(4):
-        basic.clear_screen()
-        basic.pause(100)
+    for i in range(3):
         basic.show_string(command)
         basic.pause(100)
-    basic.pause(3000)
-    command = "*"
+        basic.clear_screen()
+        basic.pause(100)
+    command = "?"
 
 def on_forever():
     global command, mark
     #listen()
     monitor_button()
     checkMorse()
-    basic.show_string(command)
-    # if command == "*":
-    #     pass
-    # else:
-    #     obey_command()
-    basic.pause(100)
+    if command == "?":
+        pass
+    else:
+        obey_command()
+    # basic.pause(10)
     
 basic.forever(on_forever)

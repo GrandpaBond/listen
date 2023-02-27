@@ -1,11 +1,11 @@
 let MORSE_TREE = "?ETIANMSURWDKGOHVF?L?PJBXCYZQ??54?3???2???????16???????7???8?91"
 let morseIndex = 0
-let command = "*"
+let command = "?"
 let LOUD = 200
 let QUIET = 100
-let DOT_MIN = 50
-let DASH_MIN = 300
-let LETTER_GAP = 800
+let DOT_MIN = 10
+let DASH_MIN = 100
+let LETTER_GAP = 1000
 let isLoud = false
 let mark = 0
 let gap = 0
@@ -53,67 +53,67 @@ function monitor_button() {
     } else {
         //  else simulated "beep" lengthens
         //  (button up)
-        gap = input.runningTime() - goQuiet
-        //  lengthen gap
         if (input.buttonIsPressed(Button.A)) {
             isLoud = true
             //  new press ends the gap
             goLoud = input.runningTime()
         }
         
+        gap = input.runningTime() - goQuiet
     }
     
 }
 
-//  else gap lengthens
+//  lengthen gap
 function checkMorse() {
     
     if (mark > 0) {
-        //  (just finished a beep)
-        if (mark > DOT_MIN) {
+        //  (just finished a beep)      
+        if (mark > DASH_MIN) {
+            morseIndex += morseIndex + 1
+        } else if (mark > DOT_MIN) {
+            //  basic.show_icon(IconNames.YES)
             morseIndex += morseIndex
         }
         
-        if (mark > DASH_MIN) {
-            morseIndex += 1
-        }
-        
-        basic.showNumber(morseIndex)
+        //  basic.show_icon(IconNames.NO)
+        //  else:
+        //  basic.show_icon(IconNames.SQUARE) 
         if (morseIndex > 63) {
             morseIndex = 0
         }
         
-        //  ignore a six-beep letter!
+        //  ignore any six-beep attempt!
         mark = 0
+    } else if (gap > LETTER_GAP) {
+        //  mark now dealt with
+        command = MORSE_TREE[morseIndex]
+        morseIndex = 0
     }
     
-    //  else: 
-    //  if gap>LETTER_GAP:
-    //  morseIndex = 0
-    command = MORSE_TREE[morseIndex]
 }
 
 function obey_command() {
     
-    for (let i = 0; i < 4; i++) {
-        basic.clearScreen()
-        basic.pause(100)
+    for (let i = 0; i < 3; i++) {
         basic.showString(command)
         basic.pause(100)
+        basic.clearScreen()
+        basic.pause(100)
     }
-    basic.pause(3000)
-    command = "*"
+    command = "?"
 }
 
+//  basic.pause(10)
 basic.forever(function on_forever() {
     
     // listen()
     monitor_button()
     checkMorse()
-    basic.showString(command)
-    //  if command == "*":
-    //      pass
-    //  else:
-    //      obey_command()
-    basic.pause(100)
+    if (command == "?") {
+        
+    } else {
+        obey_command()
+    }
+    
 })
