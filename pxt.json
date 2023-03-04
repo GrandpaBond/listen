@@ -1,5 +1,5 @@
 {
-    "name": "markspace",
+    "name": "morse",
     "description": "",
     "dependencies": {
         "core": "*",
