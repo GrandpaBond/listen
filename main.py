@@ -1,23 +1,26 @@
 # MORSE DE-CODER
+# Morse Code uses a pattern of "bleeps" (Dots or Dashes) for each letter.
+
 # This project does four things in turn:
 # a) it times our inputs to recognise Dots, Dashes or Gaps
-#   (A Gap is a longer delay, lengthing the end of a letter)
-# b) it shows the morse-code we are building on the 5 rows of LEDs
-# c) it uses the Morse-Tree to decode it, beep-by-beep
+#   (A Gap is a longer delay, marking the end of a letter)
+# b) on the 5 rows of LEDs it displays the morse-code we are building
+# c) it uses the Morse-Tree to decode it, bleep-by-bleep
 # d) it after a Gap, shows the decoded letter on the display.
 
-# Button_A is used to cycle through three "beep" input modes:
+# Button_A is used to cycle through three "bleep" input modes:
 #   [Button_B presses  - Light Flashes  -  Noise Levels ]
-# For the last two, we need to detect rises and falls in the average level
+# For the last two, we need to detect significant changes in level
+#    rather than responding to every variation.
 
 # The Morse-Tree is a string of 63 characters.
 # We use an Index to count along it and select one.
 # At each stage, there are three possible inputs:
 #    Dot, Dash, or Gap 
-# If it's a Gap, the current Index just selects the letter.
-#   (But not all Dot-Dash patterns are valid Morse codes!)
-# Otherwise, we need room for two more possibilities...
-# We organise this by doubling the Index value for each "beep", 
+# If it's a Gap, the latest Index just selects the letter.
+#   (But note that not all Dot-Dash patterns are valid Morse codes!)
+# Otherwise, we need room to hold the two new possibilities...
+# We organise this by doubling the Index value for each "bleep", 
 # and then adding 1 to it if the input was a Dash.
 
 # By extending the ObeyCode() function, you could instead use Morse codes
@@ -31,95 +34,89 @@ QUIET=30
 DOT_MIN=30
 DASH_MIN=300
 LETTER_GAP=800
-isHigh=False # the "beep" state
-length = 0
-beeps = -1
-gap=0
-goHigh=0
-goLow=input.running_time()
+BUTTON_TRIGGER = 90
+LIGHT_TRIGGER = 40
+SOUND_TRIGGER = 20
+
+bleeps = -1
+bleepStart=0
+gapStart = input.running_time()
+bleepStart = gapStart+1
 mode = 0 #(button)
-levels = [0,0,0,0,0,0,0,0]  # rolling average uses last 8 readings
-SLOTS = 8 
-slot = 0 
-levelSum = 0
+old = 0
+older = 0
+oldest = 0
+newBleep = False
+command = "*"
+newCommand = False
 
-def changeIn(new): # 
-    global levels, slot, levelSum
-    levelSum += (new - levels[slot])
-    levels[slot] = new
-    slot = (slot+1) % SLOTS
-    average =  # update rolling average
-    return new - (levelSum / SLOTS)
+def changeOf(new): 
+# compares last two readings with the two before them
+# (we use pairs to smooth out readings)
+    global old,older,oldest
+    # (only need to mention any globals we're going to overwrite)
+    change = new + old - older - oldest
+    oldest = older
+    older = old
+    old = new
+    return change
 
-
-def checkInput():
-    global mode,isHigh,goHigh,goLow, length
-    if mode == 0:   # button inputs
+def checkInputs():
+# get the next input (depending on current mode)
+    global bleepStart,gapStart
+    if mode == 2:  # using sound inputs
+        change = changeOf(input.sound_level())
+        big = SOUND_TRIGGER  
+    elif mode == 1: # using light inputs
+        change = changeOf(input.light_level())
+        big = LIGHT_TRIGGER
+    else:           # using button inputs
         if input.button_is_pressed(Button.B):
-            new = 100 # it can only ever be 100% pressed...
+            change = changeOf(100) # it can only ever be 100% pressed...
         else:
-            new = 0  # or not at all!
-        change = changeIn(new)
-    elif mode == 1: # light inputs
-        change = changeIn(input.light_level())
-    else:           # sound inputs
-        change = changeIn(input.sound_level()) 
+            change = changeOf(0)  # ...or not at all!
+        big = BUTTON_TRIGGER
+# new bleep or new completed letter?
+    if change > big: 
+    # a significant positive change means we're into a new bleep
+        bleepStart = input.running_time()   
+    if change < -big:
+     # a significant negative change means we're into a new gap
+        gapStart = input.running_time()
+# compare timings...
+    length = gapStart - bleepStart
+    # negative length means we're in a bleep so just wait
+    if length > 0: # positive length means we're into a gap
+        updateMorse(length)
+        # now check for letter-end timeout
+        if(input.running_time() - gapStart) > LETTER_GAP:
+            showLetter() 
 
-    if isHigh: # (beeping)
-        if input.sound_level()<QUIET:
-            isHigh=False # beep just ended
-            goLow=input.running_time()
-            length=goLow-goHigh
-        # else beep lengthens
-    else: # (not beeping)
-        gap = input.running_time() - goLow # lengthen gap
-        if input.sound_level()>LOUD:
-            isHigh=True # new beep ends the gap
-            goHigh=input.running_time()
-        # else gap lengthens
-        
-def feel(): # simply monitor Button_B                                                          
-    return 
-
-def monitor_button(): 
-# (same logic as listen(), but simulating sound with button_A)
-    global isHigh,goHigh,goLow,length,gap
-    if isHigh: # (button was down)
-            isHigh=False # button just released
-            goLow=input.running_time()
-            length=goLow-goHigh
-        # else simulated "beep" lengthens
-    else: # (button was up)
-        if input.button_is_pressed(Button.A):
-            isHigh=True # new press ends the gap
-            goHigh=input.running_time() 
-        # lengthen gap, even without new button press
-        gap = input.running_time() - goLow
-            
-
-def checkMorse():
-    global morseIndex, length, command, beeps
-    if length>0: # (just finished a beep)
-        if length>DOT_MIN:
-            beeps += 1
-            if beeps == 5:  # ignore any six-beep attempt!      
-                morseIndex = 0
-                basic.clear_screen()
-                beeps = -1
-            else:            
-                morseIndex += morseIndex
-                led.plot(0, beeps)
-                if length>DASH_MIN:   
-                    morseIndex += 1
-                    led.plot(1, beeps)
-                    led.plot(2, beeps)
-        length = 0 # length now dealt with (or too brief to count)
-    elif beeps >= 0 and gap > LETTER_GAP:
+def showLetter():
+    global command, newCommand
+    if bleeps >= 0: # assuming we have at least one bleep!
         command = MORSE_TREE[morseIndex]
         morseIndex = 1
-        beeps = -1
-        pause(500)  # allow time to show last beep
+        bleeps = -1
+        pause(500)  # allow time to show last bleep
         basic.clear_screen()
+
+def updateMorse(length):
+# show the new Dot or Dash and update the morse-tree Index
+    global morseIndex, bleeps
+    if length > DOT_MIN: # ignore really short bleeps
+        bleeps += 1
+        if bleeps == 5:  # ignore any six-bleep attempt!
+            morseIndex = 0
+            basic.clear_screen()
+            bleeps = -1
+        else: # it's a valid bleep
+            morseIndex += morseIndex
+            led.plot(0, bleeps)
+            if length>DASH_MIN:
+                morseIndex += 1
+                led.plot(1, bleeps)
+                led.plot(2, bleeps)
 
 def obey_command(todo): # For now, just show the letter
     basic.show_string(todo)
@@ -128,15 +125,41 @@ def obey_command(todo): # For now, just show the letter
 
 def on_button_pressed_a(): # switch input modes
     global mode
-    mode = (mode + 1) % 3 # MOD function gives 0,1,2,0,1,2,0...
+    if mode == 0:
+        mode = 1 # change to light
+        basic.show_leds("""
+        # . # . #
+        . # # # .
+        # # . # #
+        . # # # .
+        # . # . #
+        """)
+    elif mode == 1: 
+        mode = 2 # change to sound
+        basic.show_leds("""
+        # . # . #
+        . . # . #
+        # # . . #
+        . . . # .
+        # # # . .
+        """)
+    else:
+        mode = 0 # change to button
+        basic.show_leds("""
+        . . . . .
+        . # # # .
+        . # # # .
+        # # # # #
+        . . . . .
+        """)
+    basic.pause(3000)
     
 def on_forever():
-    global command
-    checkInput()
-    checkMorse()
-    if command != "*":
+    global newCommand
+    checkInputs()
+    if newCommand:
         obey_command(command)
-        command = "*"
+        newCommand = False
     basic.pause(10)
     
 input.on_button_pressed(Button.A, on_button_pressed_a)

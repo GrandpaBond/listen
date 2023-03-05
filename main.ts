@@ -1,21 +1,23 @@
 //  MORSE DE-CODER
+//  Morse Code uses a pattern of "bleeps" (Dots or Dashes) for each letter.
 //  This project does four things in turn:
 //  a) it times our inputs to recognise Dots, Dashes or Gaps
-//    (A Gap is a longer delay, lengthing the end of a letter)
-//  b) it shows the morse-code we are building on the 5 rows of LEDs
-//  c) it uses the Morse-Tree to decode it, beep-by-beep
+//    (A Gap is a longer delay, marking the end of a letter)
+//  b) on the 5 rows of LEDs it displays the morse-code we are building
+//  c) it uses the Morse-Tree to decode it, bleep-by-bleep
 //  d) it after a Gap, shows the decoded letter on the display.
-//  Button_A is used to cycle through three "beep" input modes:
+//  Button_A is used to cycle through three "bleep" input modes:
 //    [Button_B presses  - Light Flashes  -  Noise Levels ]
-//  For the last two, we need to detect rises and falls in the average level
+//  For the last two, we need to detect significant changes in level
+//     rather than responding to every variation.
 //  The Morse-Tree is a string of 63 characters.
 //  We use an Index to count along it and select one.
 //  At each stage, there are three possible inputs:
 //     Dot, Dash, or Gap 
-//  If it's a Gap, the current Index just selects the letter.
-//    (But not all Dot-Dash patterns are valid Morse codes!)
-//  Otherwise, we need room for two more possibilities...
-//  We organise this by doubling the Index value for each "beep", 
+//  If it's a Gap, the latest Index just selects the letter.
+//    (But note that not all Dot-Dash patterns are valid Morse codes!)
+//  Otherwise, we need room to hold the two new possibilities...
+//  We organise this by doubling the Index value for each "bleep", 
 //  and then adding 1 to it if the input was a Dash.
 //  By extending the ObeyCode() function, you could instead use Morse codes
 //  to control attached hardware actions, or run other microbit routines...
@@ -27,142 +29,124 @@ let QUIET = 30
 let DOT_MIN = 30
 let DASH_MIN = 300
 let LETTER_GAP = 800
-let isHigh = false
-//  the "beep" state
-let length = 0
-let beeps = -1
-let gap = 0
-let goHigh = 0
-let goLow = input.runningTime()
+let BUTTON_TRIGGER = 90
+let LIGHT_TRIGGER = 40
+let SOUND_TRIGGER = 20
+let bleeps = -1
+let bleepStart = 0
+let gapStart = input.runningTime()
+bleepStart = gapStart + 1
 let mode = 0
 // (button)
-let levels = [0, 0, 0, 0, 0, 0, 0, 0]
-//  rolling average uses last 8 readings
-let SLOTS = 8
-let slot = 0
-let levelSum = 0
-function changeIn(new_: number): number {
-    //  
+let old = 0
+let older = 0
+let oldest = 0
+let newBleep = false
+command = "*"
+let newCommand = false
+function changeOf(new_: number): number {
+    //  compares last two readings with the two before them
+    //  (we use pairs to smooth out readings)
     
-    levelSum += new_ - levels[slot]
-    levels[slot] = new_
-    slot = (slot + 1) % SLOTS
-    let average = []
-    //  update rolling average
-    return new_ - levelSum / SLOTS
+    //  (only need to mention any globals we're going to overwrite)
+    let change = new_ + old - older - oldest
+    oldest = older
+    older = old
+    old = new_
+    return change
 }
 
-function checkInput() {
-    let new_: number;
+function checkInputs() {
     let change: number;
-    let gap: number;
+    let big: number;
+    //  get the next input (depending on current mode)
     
-    if (mode == 0) {
-        //  button inputs
+    if (mode == 2) {
+        //  using sound inputs
+        change = changeOf(input.soundLevel())
+        big = SOUND_TRIGGER
+    } else if (mode == 1) {
+        //  using light inputs
+        change = changeOf(input.lightLevel())
+        big = LIGHT_TRIGGER
+    } else {
+        //  using button inputs
         if (input.buttonIsPressed(Button.B)) {
-            new_ = 100
+            change = changeOf(100)
         } else {
             //  it can only ever be 100% pressed...
-            new_ = 0
+            change = changeOf(0)
         }
         
-        //  or not at all!
-        change = changeIn(new_)
-    } else if (mode == 1) {
-        //  light inputs
-        change = changeIn(input.lightLevel())
-    } else {
-        //  sound inputs
-        change = changeIn(input.soundLevel())
+        //  ...or not at all!
+        big = BUTTON_TRIGGER
     }
     
-    if (isHigh) {
-        //  (beeping)
-        if (input.soundLevel() < QUIET) {
-            isHigh = false
-            //  beep just ended
-            goLow = input.runningTime()
-            length = goLow - goHigh
-        }
-        
-    } else {
-        //  else beep lengthens
-        //  (not beeping)
-        gap = input.runningTime() - goLow
-        //  lengthen gap
-        if (input.soundLevel() > LOUD) {
-            isHigh = true
-            //  new beep ends the gap
-            goHigh = input.runningTime()
-        }
-        
+    //  new bleep or new completed letter?
+    if (change > big) {
+        //  a significant positive change means we're into a new bleep
+        bleepStart = input.runningTime()
     }
     
-}
-
-//  else gap lengthens
-function feel() {
-    //  simply monitor Button_B                                                          
-    return
-}
-
-function monitor_button() {
-    //  (same logic as listen(), but simulating sound with button_A)
-    
-    if (isHigh) {
-        //  (button was down)
-        isHigh = false
-        //  button just released
-        goLow = input.runningTime()
-        length = goLow - goHigh
-    } else {
-        //  else simulated "beep" lengthens
-        //  (button was up)
-        if (input.buttonIsPressed(Button.A)) {
-            isHigh = true
-            //  new press ends the gap
-            goHigh = input.runningTime()
-        }
-        
-        //  lengthen gap, even without new button press
-        gap = input.runningTime() - goLow
+    if (change < -big) {
+        //  a significant negative change means we're into a new gap
+        gapStart = input.runningTime()
     }
     
-}
-
-function checkMorse() {
-    
+    //  compare timings...
+    let length = gapStart - bleepStart
+    //  negative length means we're in a bleep so just wait
     if (length > 0) {
-        //  (just finished a beep)
-        if (length > DOT_MIN) {
-            beeps += 1
-            if (beeps == 5) {
-                //  ignore any six-beep attempt!      
-                morseIndex = 0
-                basic.clearScreen()
-                beeps = -1
-            } else {
-                morseIndex += morseIndex
-                led.plot(0, beeps)
-                if (length > DASH_MIN) {
-                    morseIndex += 1
-                    led.plot(1, beeps)
-                    led.plot(2, beeps)
-                }
-                
+        //  positive length means we're into a gap
+        updateMorse(length)
+        //  now check for letter-end timeout
+        if (input.runningTime() - gapStart > LETTER_GAP) {
+            showLetter()
+        }
+        
+    }
+    
+}
+
+function showLetter() {
+    let morseIndex: number;
+    let bleeps: number;
+    
+    if (bleeps >= 0) {
+        //  assuming we have at least one bleep!
+        command = MORSE_TREE[morseIndex]
+        morseIndex = 1
+        bleeps = -1
+        pause(500)
+        //  allow time to show last bleep
+        basic.clearScreen()
+    }
+    
+}
+
+function updateMorse(length: number) {
+    //  show the new Dot or Dash and update the morse-tree Index
+    
+    if (length > DOT_MIN) {
+        //  ignore really short bleeps
+        bleeps += 1
+        if (bleeps == 5) {
+            //  ignore any six-bleep attempt!
+            morseIndex = 0
+            basic.clearScreen()
+            bleeps = -1
+        } else {
+            //  it's a valid bleep
+            morseIndex += morseIndex
+            led.plot(0, bleeps)
+            if (length > DASH_MIN) {
+                morseIndex += 1
+                led.plot(1, bleeps)
+                led.plot(2, bleeps)
             }
             
         }
         
-        length = 0
-    } else if (beeps >= 0 && gap > LETTER_GAP) {
-        //  length now dealt with (or too brief to count)
-        command = MORSE_TREE[morseIndex]
-        morseIndex = 1
-        beeps = -1
-        pause(500)
-        //  allow time to show last beep
-        basic.clearScreen()
     }
     
 }
@@ -174,19 +158,49 @@ function obey_command(todo: string) {
     basic.clearScreen()
 }
 
-//  MOD function gives 0,1,2,0,1,2,0...
 input.onButtonPressed(Button.A, function on_button_pressed_a() {
     //  switch input modes
     
-    mode = (mode + 1) % 3
+    if (mode == 0) {
+        mode = 1
+        //  change to light
+        basic.showLeds(`
+        # . # . #
+        . # # # .
+        # # . # #
+        . # # # .
+        # . # . #
+        `)
+    } else if (mode == 1) {
+        mode = 2
+        //  change to sound
+        basic.showLeds(`
+        # . # . #
+        . . # . #
+        # # . . #
+        . . . # .
+        # # # . .
+        `)
+    } else {
+        mode = 0
+        //  change to button
+        basic.showLeds(`
+        . . . . .
+        . # # # .
+        . # # # .
+        # # # # #
+        . . . . .
+        `)
+    }
+    
+    basic.pause(3000)
 })
 basic.forever(function on_forever() {
     
-    checkInput()
-    checkMorse()
-    if (command != "*") {
+    checkInputs()
+    if (newCommand) {
         obey_command(command)
-        command = "*"
+        newCommand = false
     }
     
     basic.pause(10)
