@@ -29,7 +29,7 @@ let QUIET = 30
 let DOT_MIN = 30
 let DASH_MIN = 300
 let LETTER_GAP = 800
-let BUTTON_TRIGGER = 90
+let BUTTON_TRIGGER = 199
 let LIGHT_TRIGGER = 40
 let SOUND_TRIGGER = 20
 let bleeps = -1
@@ -41,9 +41,8 @@ let mode = 0
 let old = 0
 let older = 0
 let oldest = 0
-let newBleep = false
-command = "*"
-let newCommand = false
+let letter = "*"
+let waiting = false
 function changeOf(new_: number): number {
     //  compares last two readings with the two before them
     //  (we use pairs to smooth out readings)
@@ -56,9 +55,10 @@ function changeOf(new_: number): number {
     return change
 }
 
-function checkInputs() {
+function newBleep(): boolean {
     let change: number;
     let big: number;
+    let waiting: boolean;
     //  get the next input (depending on current mode)
     
     if (mode == 2) {
@@ -82,51 +82,53 @@ function checkInputs() {
         big = BUTTON_TRIGGER
     }
     
-    //  new bleep or new completed letter?
     if (change > big) {
         //  a significant positive change means we're into a new bleep
         bleepStart = input.runningTime()
     }
     
     if (change < -big) {
-        //  a significant negative change means we're into a new gap
+        //  a significant negative change means bleep has finished
         gapStart = input.runningTime()
-    }
-    
-    //  compare timings...
-    let length = gapStart - bleepStart
-    //  negative length means we're in a bleep so just wait
-    if (length > 0) {
-        //  positive length means we're into a gap
-        updateMorse(length)
-        //  now check for letter-end timeout
-        if (input.runningTime() - gapStart > LETTER_GAP) {
-            showLetter()
-        }
-        
+        waiting = true
+        return true
+    } else {
+        return false
     }
     
 }
 
-function showLetter() {
+function newLetter(): boolean {
+    //  now check for letter-end timeout 
+    
+    let length = input.runningTime() - gapStart
+    if (waiting && length > LETTER_GAP) {
+        waiting = false
+        //  prevent retriggering every time
+        return true
+    } else {
+        return false
+    }
+    
+}
+
+function getLetter() {
+    let letter: string;
     let morseIndex: number;
     let bleeps: number;
-    
     if (bleeps >= 0) {
         //  assuming we have at least one bleep!
-        command = MORSE_TREE[morseIndex]
+        letter = MORSE_TREE[morseIndex]
         morseIndex = 1
         bleeps = -1
-        pause(500)
-        //  allow time to show last bleep
-        basic.clearScreen()
     }
     
 }
 
-function updateMorse(length: number) {
+function updateMorse() {
     //  show the new Dot or Dash and update the morse-tree Index
     
+    let length = gapStart - bleepStart
     if (length > DOT_MIN) {
         //  ignore really short bleeps
         bleeps += 1
@@ -151,9 +153,9 @@ function updateMorse(length: number) {
     
 }
 
-function obey_command(todo: string) {
+function obey_command() {
     //  For now, just show the letter
-    basic.showString(todo)
+    basic.showString(letter)
     basic.pause(500)
     basic.clearScreen()
 }
@@ -196,11 +198,16 @@ input.onButtonPressed(Button.A, function on_button_pressed_a() {
     basic.pause(3000)
 })
 basic.forever(function on_forever() {
+    if (newBleep()) {
+        updateMorse()
+    }
     
-    checkInputs()
-    if (newCommand) {
-        obey_command(command)
-        newCommand = false
+    if (newLetter()) {
+        pause(500)
+        //  allow time to see last bleep
+        basic.clearScreen()
+        getLetter()
+        obey_command()
     }
     
     basic.pause(10)
