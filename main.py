@@ -13,6 +13,10 @@
 # For the last two, we will need to detect "significant" changes in level
 #    rather than responding to every single variation.
 
+# The system only tells you when a button has been pressed and then released.
+# To time the button-press, we want to know when each of those things happened.
+# So for Button_B we need to use the low-level system command control.on_event() 
+
 # The Morse-Tree is a string of 63 characters.
 # We use an Index to count along it and select one.
 # At each stage, there are three possible inputs:
@@ -26,7 +30,9 @@
 # By extending the ObeyCode() function, you could instead use Morse codes
 # to control attached hardware actions, or run other microbit routines...
 
-# define two general purpose Event handlers for timing the starts and ends of bleeps
+# First we define two general purpose Event handlers for timing the starts and ends of bleeps
+# Note that in Python a function can freely use ANY variables from your code,
+# but it it's going to CHANGE them they must be mentioned using "global"  
 def onInputHigh():
     global bleeping,bleepStart
     if not bleeping:
@@ -38,7 +44,7 @@ def onInputLow():
     if bleeping:
         bleeping = False
         bleepEnd = input.running_time()
-        newBleep = True
+        newBleep = True   # gets set False once we've processed the bleep
 
 # Changes in light levels can't give us Events, so we'll need to check for ourselves twenty times a second.
 
@@ -62,7 +68,7 @@ def resetMorse():
 
 def updateMorse():
 # show the new Dot or Dash and update the morse-tree Index
-    global  bleepStart,bleepEnd, morseIndex, bleeps
+    global  bleepStart, bleepEnd, morseIndex, bleeps
     length = bleepEnd - bleepStart
     if length > DOT_MIN: # ignore really short bleeps
         bleeps += 1
@@ -82,8 +88,8 @@ def newLetter():
     length = input.running_time() - bleepEnd
     if newBleep and (length > LETTER_GAP):
         newBleep = False # we only need to detect this once!   
-        if bleeps >= 0: # assuming we have at least one bleep!
-            letter = MORSE_TREE[morseIndex]
+        if bleeps >= 0: # assuming we have had at least one bleep!
+            letter = MORSE_TREE[morseIndex]  # pick out the letter the index points at
             resetMorse()
             return True
         else:
@@ -93,7 +99,7 @@ def newLetter():
 
 def obeyCode():
 # Could do all sorts of things, but for now, we'll just show the letter
-    basic.pause(500)  # (first allow a bit more time to see the last bleep)
+    basic.pause(500)  # (first, allow a bit more time to see the last bleep)
     basic.clear_screen()
     basic.show_string(letter)
     basic.pause(1000)
@@ -113,7 +119,7 @@ def switchModes():
 
         mode = USE_LIGHT # prepare to switch to flashes
         LIGHT_LOW = input.light_level()
-        LIGHT_HIGH = LIGHT_LOW + 30
+        LIGHT_HIGH = LIGHT_LOW + 40
         resetMorse()
          # DIY, so we won't need to listen for any system events     
         basic.show_leds("""
@@ -192,6 +198,6 @@ loops.every_interval(50, checkLightLevel)
 input.on_button_pressed(Button.A, switchModes)
 
 # EVERYTHING DEFINED: NOW START RUNNING
-mode = USE_SOUND # ... immediately changed to USE_BUTTON:
+mode = USE_SOUND # ... gets immediately changed to USE_BUTTON:
 switchModes() # run once to ensure button mode displayed 
 basic.forever(mainLoop)
