@@ -9,9 +9,9 @@
 # d) it after a Gap, shows the decoded letter on the display.
 
 # Button_A is used to cycle through three "bleep" input modes:
-#   [Button_B presses  - Light Flashes  -  Noise Levels ]
-# For the last two, we need to detect significant changes in level
-#    rather than responding to every variation.
+#   [Button_B presses  - Light Flashes  -  Noises ]
+# For the last two, we will need to detect "significant" changes in level
+#    rather than responding to every single variation.
 
 # The Morse-Tree is a string of 63 characters.
 # We use an Index to count along it and select one.
@@ -26,92 +26,48 @@
 # By extending the ObeyCode() function, you could instead use Morse codes
 # to control attached hardware actions, or run other microbit routines...
 
-MORSE_TREE = "@?ETIANMSURWDKGOHVF?L?PJBXCYZQ??54?3???2???????16???????7???8?90"
-morseIndex = 1
-command = "*"
-LOUD=50
-QUIET=30
-DOT_MIN=30
-DASH_MIN=300
-LETTER_GAP=800
-BUTTON_TRIGGER = 199
-LIGHT_TRIGGER = 40
-SOUND_TRIGGER = 20
+# define two general purpose Event handlers for timing the starts and ends of bleeps
+def onInputHigh():
+    global bleeping,bleepStart
+    if not bleeping:
+        bleeping = True
+        bleepStart = input.running_time()
 
-bleeps = -1
-bleepStart=0
-gapStart = input.running_time()
-bleepStart = gapStart+1
-mode = 0 #(button)
-old = 0
-older = 0
-oldest = 0
-letter = "*"
-waiting = False
+def onInputLow():
+    global bleeping,bleepEnd,newBleep
+    if bleeping:
+        bleeping = False
+        bleepEnd = input.running_time()
+        newBleep = True
 
-def changeOf(new): 
-# compares last two readings with the two before them
-# (we use pairs to smooth out readings)
-    global old,older,oldest
-    # (only need to mention any globals we're going to overwrite)
-    change = new + old - older - oldest
-    oldest = older
-    older = old
-    old = new
-    return change
+# Changes in light levels can't give us Events, so we'll need to check for ourselves twenty times a second.
 
-def newBleep():
-# get the next input (depending on current mode)
-    global bleepStart, gapStart, newBleep
-    if mode == 2:  # using sound inputs
-        change = changeOf(input.sound_level())
-        big = SOUND_TRIGGER  
-    elif mode == 1: # using light inputs
-        change = changeOf(input.light_level())
-        big = LIGHT_TRIGGER
-    else:           # using button inputs
-        if input.button_is_pressed(Button.B):
-            change = changeOf(100) # it can only ever be 100% pressed...
+def checkLightLevel():
+# Once these regular checks are started, using loops_every_interval(), there's no way of stopping them, 
+# so for BUTTON and SOUND modes, this function gets called but does nothing!
+    if mode == USE_LIGHT: 
+        level = input.light_level()
+        if bleeping:
+            if level < LIGHT_LOW:
+                onInputLow()
         else:
-            change = changeOf(0)  # ...or not at all!
-        big = BUTTON_TRIGGER
-    if change > big: 
-    # a significant positive change means we're into a new bleep
-        bleepStart = input.running_time()   
-    if change < -big:
-    # a significant negative change means bleep has finished
-        gapStart = input.running_time()
-        waiting = True
-        return True
-    else:
-        return False
-
-def newLetter():
-# now check for letter-end timeout 
-    global waiting
-    length =  input.running_time() - gapStart
-    if waiting and (length > LETTER_GAP):
-        waiting = False # prevent retriggering every time
-        return True
-    else:
-        return False
-
-def getLetter():
-    if bleeps >= 0: # assuming we have at least one bleep!
-        letter = MORSE_TREE[morseIndex]
-        morseIndex = 1
-        bleeps = -1
+            if level > LIGHT_HIGH:
+                onInputHigh()
+           
+def resetMorse():
+# prepare decoder for a new letter    
+    morseIndex = 1
+    basic.clear_screen()
+    bleeps = -1
 
 def updateMorse():
 # show the new Dot or Dash and update the morse-tree Index
-    global  bleepStart,gapStart, morseIndex, bleeps
-    length = gapStart - bleepStart
+    global  bleepStart,bleepEnd, morseIndex, bleeps
+    length = bleepEnd - bleepStart
     if length > DOT_MIN: # ignore really short bleeps
         bleeps += 1
         if bleeps == 5:  # ignore any six-bleep attempt!
-            morseIndex = 0
-            basic.clear_screen()
-            bleeps = -1
+            resetMorse()
         else: # it's a valid bleep
             morseIndex += morseIndex
             led.plot(0, bleeps)
@@ -119,16 +75,44 @@ def updateMorse():
                 morseIndex += 1
                 led.plot(1, bleeps)
                 led.plot(2, bleeps)
+    
+def newLetter():
+# check for letter-end timeout (if it han't already happened)
+    global newBleep, morseIndex, letter, bleeps
+    length = input.running_time() - bleepEnd
+    if newBleep and (length > LETTER_GAP):
+        newBleep = False # we only need to detect this once!   
+        if bleeps >= 0: # assuming we have at least one bleep!
+            letter = MORSE_TREE[morseIndex]
+            resetMorse()
+            return True
+        else:
+            return False
+    else:
+        return False
 
-def obey_command(): # For now, just show the letter
+def obeyCode():
+# Could do all sorts of things, but for now, we'll just show the letter
+    basic.pause(500)  # (first allow a bit more time to see the last bleep)
+    basic.clear_screen()
     basic.show_string(letter)
-    basic.pause(500)
+    basic.pause(1000)
     basic.clear_screen()
 
-def on_button_pressed_a(): # switch input modes
-    global mode
-    if mode == 0:
-        mode = 1 # change to light
+def switchModes():
+# respond to Button_A being pressed
+    global mode, bleeps
+# depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)
+    if mode == USE_BUTTON:
+        # stop monitoring ups and downs of button B
+        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, None)
+        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, None)
+
+        mode = USE_LIGHT # prepare to switch to flashes
+        LIGHT_LOW = input.light_level()
+        LIGHT_HIGH = LIGHT_LOW + 30
+        resetMorse()
+         # DIY, so we won't need to listen for any system events     
         basic.show_leds("""
         # . # . #
         . # # # .
@@ -136,8 +120,15 @@ def on_button_pressed_a(): # switch input modes
         . # # # .
         # . # . #
         """)
-    elif mode == 1: 
-        mode = 2 # change to sound
+    elif mode == USE_LIGHT: 
+        mode = USE_SOUND # change of mode will disable our light_level_check()
+        SOUND_LOW = input.sound_level()
+        SOUND_HIGH = SOUND_LOW + 15
+        # start monitoring sounds instead
+        input.on_sound(DetectedSound.LOUD, onInputHigh)
+        input.on_sound(DetectedSound.QUIET, onInputLow)
+        mode = USE_SOUND
+        resetMorse()
         basic.show_leds("""
         # . # . #
         . . # . #
@@ -145,26 +136,59 @@ def on_button_pressed_a(): # switch input modes
         . . . # .
         # # # . .
         """)
-    else:
-        mode = 0 # change to button
-        basic.show_leds("""
-        . . . . .
-        . # # # .
-        . # # # .
-        # # # # #
-        . . . . .
-        """)
-    basic.pause(3000)
-    
-def on_forever():
-    if newBleep():
+    else: # mode must be USE_SOUND
+        # stop monitoring sounds
+        input.on_sound(DetectedSound.LOUD, None)
+        input.on_sound(DetectedSound.QUIET, None)
+        # start monitoring button B instead
+        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, onInputHigh)
+        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, onInputLow)
+        mode = USE_BUTTON
+        resetMorse()
+        basic.show_arrow(ArrowNames.EAST)
+    basic.pause(2000)
+    basic.clear_screen()
+
+# MAIN PROGRAM LOOP...
+def mainLoop():
+    if newBleep: # a Bleep has just ended...
         updateMorse()
-    if newLetter():
-        pause(500)  # allow time to see last bleep
-        basic.clear_screen()
-        getLetter()
-        obey_command()
-    basic.pause(10)
-    
-input.on_button_pressed(Button.A, on_button_pressed_a)
-basic.forever(on_forever)
+    if newLetter(): # we've waited too long for another Bleep, so letter is complete
+        obeyCode() # ...as shown by global letter
+    basic.pause(20)
+
+# VALUES TO BE TUNED FOR BEST PERFORMANCE
+DOT_MIN=20
+DASH_MIN=250
+LETTER_GAP=500
+
+# These trigger levels will be set automatically
+LIGHT_HIGH = 0
+LIGHT_LOW = 0
+SOUND_HIGH = 0
+SOUND_LOW = 0
+
+# MODES:
+USE_BUTTON = 0
+USE_LIGHT = 1
+USE_SOUND = 2
+
+MORSE_TREE = "@?ETIANMSURWDKGOHVF?L?PJBXCYZQ??54?3???2???????16???????7???8?90"
+morseIndex = 1
+bleeps = -1
+bleepStart = input.running_time()
+bleepEnd = bleepStart
+letter = "*"
+bleeping = False
+newBleep = False
+zero = input.light_level() # BUG: always gives 0 the first time it's used!
+
+# kick off our background light checker (once started, this can't be stopped!)
+loops.every_interval(50, checkLightLevel)
+# tell system what to do when Button_A gets pressed
+input.on_button_pressed(Button.A, switchModes)
+
+# EVERYTHING DEFINED: NOW START RUNNING
+mode = USE_SOUND # ... immediately changed to USE_BUTTON:
+switchModes() # run once to ensure button mode displayed 
+basic.forever(mainLoop)
