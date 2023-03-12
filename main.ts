@@ -107,6 +107,11 @@ function obeyCode() {
     basic.clearScreen()
 }
 
+function doNothing() {
+    //  needed when we want to switch off listening to an event
+    
+}
+
 function switchModes() {
     let LIGHT_LOW: number;
     let LIGHT_HIGH: any;
@@ -117,8 +122,8 @@ function switchModes() {
     //  depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)
     if (mode == USE_BUTTON) {
         //  stop monitoring ups and downs of button B
-        control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, null)
-        control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, null)
+        control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, doNothing)
+        control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, doNothing)
         mode = USE_LIGHT
         //  prepare to switch to flashes
         LIGHT_LOW = input.lightLevel()
@@ -152,8 +157,8 @@ function switchModes() {
     } else {
         //  mode must be USE_SOUND
         //  stop monitoring sounds
-        input.onSound(DetectedSound.Loud, null)
-        input.onSound(DetectedSound.Quiet, null)
+        input.onSound(DetectedSound.Loud, doNothing)
+        input.onSound(DetectedSound.Quiet, doNothing)
         //  start monitoring button B instead
         control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, onInputHigh)
         control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, onInputLow)

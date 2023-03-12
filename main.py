@@ -99,14 +99,17 @@ def obeyCode():
     basic.pause(1000)
     basic.clear_screen()
 
+def doNothing(): # needed when we want to switch off listening to an event
+    pass
+
 def switchModes():
 # respond to Button_A being pressed
     global mode, bleeps
 # depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)
     if mode == USE_BUTTON:
         # stop monitoring ups and downs of button B
-        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, None)
-        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, None)
+        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, doNothing)
+        control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, doNothing)
 
         mode = USE_LIGHT # prepare to switch to flashes
         LIGHT_LOW = input.light_level()
@@ -138,8 +141,8 @@ def switchModes():
         """)
     else: # mode must be USE_SOUND
         # stop monitoring sounds
-        input.on_sound(DetectedSound.LOUD, None)
-        input.on_sound(DetectedSound.QUIET, None)
+        input.on_sound(DetectedSound.LOUD, doNothing)
+        input.on_sound(DetectedSound.QUIET, doNothing)
         # start monitoring button B instead
         control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, onInputHigh)
         control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, onInputLow)
