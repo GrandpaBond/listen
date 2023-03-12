@@ -49,10 +49,11 @@ function onInputLow() {
 //  gets set False once we've processed the bleep
 //  Changes in light levels can't give us Events, so we'll need to check for ourselves twenty times a second.
 function resetMorse() {
+    
     //  prepare decoder for a new letter    
-    let morseIndex = 1
+    morseIndex = 1
     basic.clearScreen()
-    let bleeps = -1
+    bleeps = -1
 }
 
 function updateMorse() {
@@ -120,10 +121,6 @@ function doNothing() {
 }
 
 function switchModes() {
-    let LIGHT_LOW: number;
-    let LIGHT_HIGH: any;
-    let SOUND_LOW: number;
-    let SOUND_HIGH: any;
     //  respond to Button_A being pressed
     
     //  depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)

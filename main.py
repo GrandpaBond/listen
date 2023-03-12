@@ -34,13 +34,13 @@
 # Note that in Python a function can freely use ANY variables from your code,
 # but it it's going to CHANGE them they must be mentioned using "global"  
 def onInputHigh():
-    global bleeping,bleepStart
+    global bleeping, bleepStart
     if not bleeping:
         bleeping = True
         bleepStart = input.running_time()
 
 def onInputLow():
-    global bleeping,bleepEnd,newBleep
+    global bleeping, bleepEnd, newBleep
     if bleeping:
         bleeping = False
         bleepEnd = input.running_time()
@@ -61,6 +61,7 @@ def checkLightLevel():
                 onInputHigh()
            
 def resetMorse():
+    global morseIndex, bleeps
 # prepare decoder for a new letter    
     morseIndex = 1
     basic.clear_screen()
@@ -84,7 +85,7 @@ def updateMorse():
     
 def newLetter():
 # check for letter-end timeout (if it han't already happened)
-    global newBleep, morseIndex, letter, bleeps
+    global newBleep, letter
     length = input.running_time() - bleepEnd
     if newBleep and (length > LETTER_GAP):
         newBleep = False # we only need to detect this once!   
@@ -110,7 +111,7 @@ def doNothing(): # needed when we want to switch off listening to an event
 
 def switchModes():
 # respond to Button_A being pressed
-    global mode, bleeps
+    global mode, LIGHT_LOW, LIGHT_HIGH, SOUND_LOW, SOUND_HIGH
 # depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)
     if mode == USE_BUTTON:
         # stop monitoring ups and downs of button B
