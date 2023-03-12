@@ -54,7 +54,6 @@ function resetMorse() {
     morseIndex = 1
     basic.clearScreen()
     bleeps = -1
-    letter = "*"
 }
 
 function updateMorse() {
@@ -88,12 +87,11 @@ function newLetter(): boolean {
     //  check for letter-end timeout (if it han't already happened)
     
     let length = input.runningTime() - bleepEnd
-    if (bleeping || length < LETTER_GAP) {
+    if (bleeping || length < LETTER_GAP || bleeps < 0) {
         return false
     } else {
         letter = MORSE_TREE[morseIndex]
         //  pick out the letter the index points at
-        resetMorse()
         return true
     }
     
@@ -107,6 +105,7 @@ function obeyCode() {
     basic.showString(letter)
     basic.pause(1000)
     basic.clearScreen()
+    resetMorse()
 }
 
 function doNothing() {

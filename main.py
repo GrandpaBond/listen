@@ -60,13 +60,13 @@ def checkLightLevel():
             if level > LIGHT_HIGH:
                 onInputHigh()
            
+
 def resetMorse():
     global morseIndex, bleeps,letter
 # prepare decoder for a new letter    
     morseIndex = 1
     basic.clear_screen()
     bleeps = -1
-    letter = "*"
 
 def updateMorse():
 # in response to new bleep, show the new Dot or Dash and update the morse-tree Index
@@ -87,13 +87,12 @@ def updateMorse():
 
 def newLetter():
 # check for letter-end timeout (if it han't already happened)
-    global bleeping, letter
+    global bleeps, bleeping, letter
     length = input.running_time() - bleepEnd
-    if bleeping or (length < LETTER_GAP): 
+    if bleeping or (length < LETTER_GAP) or (bleeps < 0): 
         return False
     else:  
         letter = MORSE_TREE[morseIndex]  # pick out the letter the index points at
-        resetMorse()
         return True
 
 def obeyCode():
@@ -103,6 +102,7 @@ def obeyCode():
     basic.show_string(letter)
     basic.pause(1000)
     basic.clear_screen()
+    resetMorse()
 
 def doNothing(): # needed when we want to switch off listening to an event
     pass
