@@ -61,15 +61,16 @@ def checkLightLevel():
                 onInputHigh()
            
 def resetMorse():
-    global morseIndex, bleeps
+    global morseIndex, bleeps,letter
 # prepare decoder for a new letter    
     morseIndex = 1
     basic.clear_screen()
     bleeps = -1
+    letter = "*"
 
 def updateMorse():
-# show the new Dot or Dash and update the morse-tree Index
-    global  bleepStart, bleepEnd, morseIndex, bleeps
+# in response to new bleep, show the new Dot or Dash and update the morse-tree Index
+    global  bleepStart, bleepEnd, morseIndex, bleeps, newBleep
     length = bleepEnd - bleepStart
     if length > DOT_MIN: # ignore really short bleeps
         bleeps += 1
@@ -82,21 +83,18 @@ def updateMorse():
                 morseIndex += 1
                 led.plot(1, bleeps)
                 led.plot(2, bleeps)
-    
+    newBleep = False
+
 def newLetter():
 # check for letter-end timeout (if it han't already happened)
-    global newBleep, letter
+    global bleeping, letter
     length = input.running_time() - bleepEnd
-    if newBleep and (length > LETTER_GAP):
-        newBleep = False # we only need to detect this once!   
-        if bleeps >= 0: # assuming we have had at least one bleep!
-            letter = MORSE_TREE[morseIndex]  # pick out the letter the index points at
-            resetMorse()
-            return True
-        else:
-            return False
-    else:
+    if bleeping or (length < LETTER_GAP): 
         return False
+    else:  
+        letter = MORSE_TREE[morseIndex]  # pick out the letter the index points at
+        resetMorse()
+        return True
 
 def obeyCode():
 # Could do all sorts of things, but for now, we'll just show the letter
@@ -191,6 +189,7 @@ bleepEnd = bleepStart
 letter = "*"
 bleeping = False
 newBleep = False
+newGap = False
 zero = input.light_level() # BUG: always gives 0 the first time it's used!
 
 # kick off our background light checker (once started, this can't be stopped!)

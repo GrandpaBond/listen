@@ -54,10 +54,11 @@ function resetMorse() {
     morseIndex = 1
     basic.clearScreen()
     bleeps = -1
+    letter = "*"
 }
 
 function updateMorse() {
-    //  show the new Dot or Dash and update the morse-tree Index
+    //  in response to new bleep, show the new Dot or Dash and update the morse-tree Index
     
     let length = bleepEnd - bleepStart
     if (length > DOT_MIN) {
@@ -80,27 +81,20 @@ function updateMorse() {
         
     }
     
+    newBleep = false
 }
 
 function newLetter(): boolean {
     //  check for letter-end timeout (if it han't already happened)
     
     let length = input.runningTime() - bleepEnd
-    if (newBleep && length > LETTER_GAP) {
-        newBleep = false
-        //  we only need to detect this once!   
-        if (bleeps >= 0) {
-            //  assuming we have had at least one bleep!
-            letter = MORSE_TREE[morseIndex]
-            //  pick out the letter the index points at
-            resetMorse()
-            return true
-        } else {
-            return false
-        }
-        
-    } else {
+    if (bleeping || length < LETTER_GAP) {
         return false
+    } else {
+        letter = MORSE_TREE[morseIndex]
+        //  pick out the letter the index points at
+        resetMorse()
+        return true
     }
     
 }
@@ -197,6 +191,7 @@ let bleepEnd = bleepStart
 let letter = "*"
 let bleeping = false
 let newBleep = false
+let newGap = false
 let zero = input.lightLevel()
 //  BUG: always gives 0 the first time it's used!
 //  kick off our background light checker (once started, this can't be stopped!)
