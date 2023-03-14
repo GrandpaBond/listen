@@ -29,7 +29,7 @@
 //  but it it's going to CHANGE them they must be mentioned using "global"  
 function onInputHigh() {
     
-    if (!bleeping) {
+    if (active && !bleeping) {
         bleeping = true
         bleepStart = input.runningTime()
     }
@@ -38,7 +38,7 @@ function onInputHigh() {
 
 function onInputLow() {
     
-    if (bleeping) {
+    if (active && bleeping) {
         bleeping = false
         bleepEnd = input.runningTime()
         newBleep = true
@@ -84,12 +84,14 @@ function updateMorse() {
 }
 
 function newLetter(): boolean {
-    //  check for letter-end timeout (if it han't already happened)
+    //  check for letter-end timeout (if it hasn't already happened)
     
     let length = input.runningTime() - bleepEnd
     if (bleeping || length < LETTER_GAP || bleeps < 0) {
         return false
     } else {
+        active = false
+        //  temporarily stop checking for new bleeps
         letter = MORSE_TREE[morseIndex]
         //  pick out the letter the index points at
         return true
@@ -105,28 +107,29 @@ function obeyCode() {
     basic.showString(letter)
     basic.pause(1000)
     basic.clearScreen()
-    resetMorse()
 }
 
 function doNothing() {
-    //  needed when we want to switch off listening to an event
+    //  needed for when we want to switch off listening to an event
     
 }
 
 function switchModes() {
     //  respond to Button_A being pressed
     
+    active = false
     //  depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)
     if (mode == USE_BUTTON) {
+        //  switch to USE_LIGHT
         //  stop monitoring ups and downs of button B
         control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, doNothing)
         control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, doNothing)
         mode = USE_LIGHT
         //  prepare to switch to flashes
-        LIGHT_LOW = input.lightLevel()
+        //  set the low trigger a bit above the background lighting level
+        LIGHT_LOW = input.lightLevel() + 10
         LIGHT_HIGH = LIGHT_LOW + 40
-        resetMorse()
-        //  DIY, so we won't need to listen for any system events     
+        //  we check for ourselves every 50ms, so we won't need to listen for any system events     
         basic.showLeds(`
         # . # . #
         . # # # .
@@ -135,15 +138,18 @@ function switchModes() {
         # . # . #
         `)
     } else if (mode == USE_LIGHT) {
+        //  switch to USE_SOUND
         mode = USE_SOUND
-        //  change of mode will disable our light_level_check()
-        SOUND_LOW = input.soundLevel()
-        SOUND_HIGH = SOUND_LOW + 15
-        //  start monitoring sounds instead
+        //  just changing the mode will disable our light_level_check()
+        SOUND_LOW = input.soundLevel() + 10
+        //  get the background noise level
+        SOUND_HIGH = SOUND_LOW + 20
+        input.setSoundThreshold(SoundThreshold.Quiet, SOUND_LOW)
+        input.setSoundThreshold(SoundThreshold.Loud, SOUND_HIGH)
+        //  get the system to start monitoring sounds for us instead
         input.onSound(DetectedSound.Loud, onInputHigh)
         input.onSound(DetectedSound.Quiet, onInputLow)
         mode = USE_SOUND
-        resetMorse()
         basic.showLeds(`
         # . # . #
         . . # . #
@@ -152,27 +158,27 @@ function switchModes() {
         # # # . .
         `)
     } else {
-        //  mode must be USE_SOUND
-        //  stop monitoring sounds
+        //  mode must be USE_SOUND: switch to USE_BUTTON
+        //  stop the system monitoring sounds for us
         input.onSound(DetectedSound.Loud, doNothing)
         input.onSound(DetectedSound.Quiet, doNothing)
-        //  start monitoring button B instead
+        //  get the system to start monitoring button B for us instead
         control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, onInputHigh)
         control.onEvent(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, onInputLow)
         mode = USE_BUTTON
-        resetMorse()
         basic.showArrow(ArrowNames.East)
     }
     
     basic.pause(2000)
     basic.clearScreen()
+    active = true
 }
 
 //  MAIN PROGRAM LOOP...
 //  VALUES TO BE TUNED FOR BEST PERFORMANCE
 let DOT_MIN = 20
 let DASH_MIN = 250
-let LETTER_GAP = 500
+let LETTER_GAP = 800
 //  These trigger levels will be set automatically
 let LIGHT_HIGH = 0
 let LIGHT_LOW = 0
@@ -188,6 +194,7 @@ let bleeps = -1
 let bleepStart = input.runningTime()
 let bleepEnd = bleepStart
 let letter = "*"
+let active = false
 let bleeping = false
 let newBleep = false
 let newGap = false
@@ -220,6 +227,7 @@ let mode = USE_SOUND
 switchModes()
 //  run once to ensure button mode displayed 
 basic.forever(function mainLoop() {
+    
     if (newBleep) {
         //  a Bleep has just ended...
         updateMorse()
@@ -228,8 +236,11 @@ basic.forever(function mainLoop() {
     if (newLetter()) {
         //  we've waited too long for another Bleep, so letter is complete
         obeyCode()
+        //  ...as shown by global letter
+        resetMorse()
+        //  start checking for bleeps again
+        active = true
     }
     
-    //  ...as shown by global letter
     basic.pause(20)
 })

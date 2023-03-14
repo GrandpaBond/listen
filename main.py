@@ -34,14 +34,14 @@
 # Note that in Python a function can freely use ANY variables from your code,
 # but it it's going to CHANGE them they must be mentioned using "global"  
 def onInputHigh():
-    global bleeping, bleepStart
-    if not bleeping:
+    global active, bleeping, bleepStart
+    if active and not bleeping:
         bleeping = True
         bleepStart = input.running_time()
 
 def onInputLow():
-    global bleeping, bleepEnd, newBleep
-    if bleeping:
+    global active, bleeping, bleepEnd, newBleep
+    if active and bleeping:
         bleeping = False
         bleepEnd = input.running_time()
         newBleep = True   # gets set False once we've processed the bleep
@@ -86,12 +86,13 @@ def updateMorse():
     newBleep = False
 
 def newLetter():
-# check for letter-end timeout (if it han't already happened)
-    global bleeps, bleeping, letter
+# check for letter-end timeout (if it hasn't already happened)
+    global active, letter
     length = input.running_time() - bleepEnd
     if bleeping or (length < LETTER_GAP) or (bleeps < 0): 
         return False
-    else:  
+    else:
+        active = False # temporarily stop checking for new bleeps
         letter = MORSE_TREE[morseIndex]  # pick out the letter the index points at
         return True
 
@@ -102,25 +103,25 @@ def obeyCode():
     basic.show_string(letter)
     basic.pause(1000)
     basic.clear_screen()
-    resetMorse()
 
-def doNothing(): # needed when we want to switch off listening to an event
+def doNothing(): # needed for when we want to switch off listening to an event
     pass
 
 def switchModes():
 # respond to Button_A being pressed
-    global mode, LIGHT_LOW, LIGHT_HIGH, SOUND_LOW, SOUND_HIGH
+    global active, mode, LIGHT_LOW, LIGHT_HIGH, SOUND_LOW, SOUND_HIGH
+    active = False
 # depending on Mode, we must listen out for appropriate events (and ignore ones for other modes!)
-    if mode == USE_BUTTON:
+    if mode == USE_BUTTON: # switch to USE_LIGHT
         # stop monitoring ups and downs of button B
         control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, doNothing)
         control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, doNothing)
 
         mode = USE_LIGHT # prepare to switch to flashes
-        LIGHT_LOW = input.light_level()
+        # set the low trigger a bit above the background lighting level
+        LIGHT_LOW = input.light_level() + 10
         LIGHT_HIGH = LIGHT_LOW + 40
-        resetMorse()
-         # DIY, so we won't need to listen for any system events     
+         # we check for ourselves every 50ms, so we won't need to listen for any system events     
         basic.show_leds("""
         # . # . #
         . # # # .
@@ -128,15 +129,16 @@ def switchModes():
         . # # # .
         # . # . #
         """)
-    elif mode == USE_LIGHT: 
-        mode = USE_SOUND # change of mode will disable our light_level_check()
-        SOUND_LOW = input.sound_level()
-        SOUND_HIGH = SOUND_LOW + 15
-        # start monitoring sounds instead
+    elif mode == USE_LIGHT:  # switch to USE_SOUND
+        mode = USE_SOUND # just changing the mode will disable our light_level_check()
+        SOUND_LOW = input.sound_level() + 10 # get the background noise level
+        SOUND_HIGH = SOUND_LOW + 20
+        input.set_sound_threshold(SoundThreshold.QUIET, SOUND_LOW)
+        input.set_sound_threshold(SoundThreshold.LOUD, SOUND_HIGH)
+        # get the system to start monitoring sounds for us instead
         input.on_sound(DetectedSound.LOUD, onInputHigh)
         input.on_sound(DetectedSound.QUIET, onInputLow)
         mode = USE_SOUND
-        resetMorse()
         basic.show_leds("""
         # . # . #
         . . # . #
@@ -144,31 +146,34 @@ def switchModes():
         . . . # .
         # # # . .
         """)
-    else: # mode must be USE_SOUND
-        # stop monitoring sounds
+    else: # mode must be USE_SOUND: switch to USE_BUTTON
+        # stop the system monitoring sounds for us
         input.on_sound(DetectedSound.LOUD, doNothing)
         input.on_sound(DetectedSound.QUIET, doNothing)
-        # start monitoring button B instead
+        # get the system to start monitoring button B for us instead
         control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_DOWN, onInputHigh)
         control.on_event(EventBusSource.MICROBIT_ID_BUTTON_B, EventBusValue.MICROBIT_BUTTON_EVT_UP, onInputLow)
         mode = USE_BUTTON
-        resetMorse()
         basic.show_arrow(ArrowNames.EAST)
     basic.pause(2000)
     basic.clear_screen()
+    active = True
 
 # MAIN PROGRAM LOOP...
 def mainLoop():
+    global active
     if newBleep: # a Bleep has just ended...
         updateMorse()
     if newLetter(): # we've waited too long for another Bleep, so letter is complete
         obeyCode() # ...as shown by global letter
+        resetMorse() # start checking for bleeps again
+        active = True
     basic.pause(20)
 
 # VALUES TO BE TUNED FOR BEST PERFORMANCE
 DOT_MIN=20
 DASH_MIN=250
-LETTER_GAP=500
+LETTER_GAP=800
 
 # These trigger levels will be set automatically
 LIGHT_HIGH = 0
@@ -187,6 +192,7 @@ bleeps = -1
 bleepStart = input.running_time()
 bleepEnd = bleepStart
 letter = "*"
+active = False
 bleeping = False
 newBleep = False
 newGap = False
