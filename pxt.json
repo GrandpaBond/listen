@@ -1,5 +1,5 @@
 {
-    "name": "morse",
+    "name": "Morse De-coder",
     "version": "1.0.0",
     "description": "",
     "dependencies": {
@@ -17,7 +17,7 @@
         "test.ts"
     ],
     "targetVersions": {
-        "target": "5.0.12",
+        "target": "5.1.33",
         "targetId": "microbit"
     },
     "supportedTargets": [

@@ -87,7 +87,7 @@ function newLetter(): boolean {
     //  check for letter-end timeout (if it hasn't already happened)
     
     let length = input.runningTime() - bleepEnd
-    if (bleeping || length < LETTER_GAP || bleeps < 0) {
+    if (bleeping || length < LETTER_GAP || bleeps < 0 || !active) {
         return false
     } else {
         active = false
@@ -170,6 +170,15 @@ function switchModes() {
     }
     
     basic.pause(2000)
+    basic.showIcon(IconNames.Square)
+    basic.showIcon(IconNames.SmallSquare)
+    basic.showLeds(`
+    . . . . .
+    . . . . .
+    . . # . . 
+    . . . . .
+    . . . . .
+    `)
     basic.clearScreen()
     active = true
 }

@@ -89,7 +89,7 @@ def newLetter():
 # check for letter-end timeout (if it hasn't already happened)
     global active, letter
     length = input.running_time() - bleepEnd
-    if bleeping or (length < LETTER_GAP) or (bleeps < 0): 
+    if bleeping or (length < LETTER_GAP) or (bleeps < 0) or not active: 
         return False
     else:
         active = False # temporarily stop checking for new bleeps
@@ -156,6 +156,15 @@ def switchModes():
         mode = USE_BUTTON
         basic.show_arrow(ArrowNames.EAST)
     basic.pause(2000)
+    basic.show_icon(IconNames.SQUARE)
+    basic.show_icon(IconNames.SMALL_SQUARE)
+    basic.show_leds("""
+    . . . . .
+    . . . . .
+    . . # . . 
+    . . . . .
+    . . . . .
+    """)
     basic.clear_screen()
     active = True
 
